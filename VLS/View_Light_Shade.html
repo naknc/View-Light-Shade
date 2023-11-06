@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+
+<script id="gouraud-vertex-shader" type="x-shader/x-vertex">
+// assume both position and normal are in homogeneous form
+
+attribute vec4 vPosition;
+attribute vec4 vNormal;
+
+uniform vec4 ambientProduct, diffuseProduct, specularProduct;
+uniform vec4 lightPosition;
+uniform float shininess;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat3 normalMatrix;
+
+varying vec4 fColor;
+
+void
+main()
+{
+	// Compute terms in the illumination equation
+    vec4 ambient = ambientProduct;
+	
+    // pos is vertex position in eye coordinates    
+    vec3 pos = (modelViewMatrix * vPosition).xyz;
+    
+    // vector from vertex position to light source    
+    vec3 L;    
+    // check for directional light    
+    if(lightPosition.w == 0.0) L = normalize(lightPosition.xyz);
+    else L = normalize( lightPosition.xyz - pos );    
+
+    // Transform vertex normal into eye coordinates    
+    vec3 N = normalize( normalMatrix*vNormal.xyz);   
+
+    float Kd = max( dot(L, N), 0.0 );
+    vec4  diffuse = Kd*diffuseProduct;
+	
+	// Because the eye point the is at the orgin
+    // the vector from the vertex position to the eye is    	
+    vec3 V = -normalize( pos );
+    
+    // halfway vector    
+    vec3 H = normalize( L + V );
+
+    float Ks = pow( max(dot(N, H), 0.0), shininess );
+    vec4  specular = Ks * specularProduct;
+    
+    if( dot(L, N) < 0.0 ) {
+		specular = vec4(0.0, 0.0, 0.0, 1.0);
+    } 
+
+    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+    
+    fColor = ambient + diffuse +specular;
+    fColor.a = 1.0;
+}
+</script>
+
+<script id="gouraud-fragment-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+
+varying vec4 fColor;
+
+void
+main()
+{
+    gl_FragColor = fColor;
+}
+</script>
+
+<script id="phong-vertex-shader" type="x-shader/x-vertex">
+
+attribute vec4 vPosition;
+attribute vec4 vNormal;
+
+uniform mat4 modelViewMatrix;
+uniform mat4 projectionMatrix;
+uniform mat3 normalMatrix;
+
+uniform vec4 lightPosition;
+
+varying vec3 N, L, V;
+
+void main()
+{
+    vec3 pos = (modelViewMatrix * vPosition).xyz;
+    
+    // check for directional light    
+    if(lightPosition.w == 0.0) L = normalize(lightPosition.xyz);
+    else L = normalize( lightPosition.xyz - pos );
+    
+    V =  -normalize(pos);
+    N = normalize( normalMatrix*vNormal.xyz);
+
+    gl_Position = projectionMatrix * modelViewMatrix * vPosition;
+    
+}
+</script>
+
+<script id="phong-fragment-shader" type="x-shader/x-fragment">
+
+precision mediump float;
+
+uniform vec4 ambientProduct;
+uniform vec4 diffuseProduct;
+uniform vec4 specularProduct;
+uniform float shininess;
+varying vec3 N, L, V;
+
+void main()
+{    
+    vec4 ambient = ambientProduct;
+
+    float Kd = max( dot(L, N), 0.0 );
+    vec4  diffuse = Kd*diffuseProduct;
+
+	vec3 H = normalize( L + V );
+    float Ks = pow( max(dot(N, H), 0.0), shininess );
+    vec4  specular = Ks * specularProduct;
+    
+    if( dot(L, N) < 0.0 ) specular = vec4(0.0, 0.0, 0.0, 1.0);
+
+    vec4 fColor = ambient + diffuse +specular;
+    fColor.a = 1.0;
+
+    gl_FragColor = fColor;
+}
+</script>
+
+<script type="text/javascript" src="../Common/webgl-utils.js"></script>
+<script type="text/javascript" src="../Common/initShaders.js"></script>
+
+<script type="text/javascript" src="../Common/MV.js"></script>
+<script type="text/javascript" src="View_Light_Shade.js"></script>
+
+<body style="background-color:powderblue;">
+    <div>
+        Nihan Akıncı
+    </div>
+    <table>
+        <td>
+            <canvas id="gl-canvas" width="650" height="650">
+                Oops ... your browser doesn't support the HTML5 canvas element
+            </canvas>
+        </td>
+        <td>
+            <div> <strong>---- Controls ----</strong> </div><br>
+            <div> <strong>Object related</strong> </div>
+            <button id="Button1">Increase Subdivisions</button>
+            <button id="Button2">Decrease Subdivisions</button>
+            <div>  Matterial diffuse color R: 0<input id="redSlider" type="range" min="0" max="1" step="0.05"/>1</div>
+            <div>  Matterial diffuse color G: 0<input id="greenSlider" type="range" min="0" max="1" step="0.05"/>1 </div>
+            <div> Matterial diffuse color B: 0<input id="blueSlider" type="range" min="0" max="1" step="0.05"/>1 </div>
+            <div>  β: 1<input id="betaSlider" type="range" min="1" max="100" step="10" value="20"/>100 </div>
+            <br>
+
+            <div> <strong>Camera related</strong> </div>
+            <div>  FOVY: 30<input id="FOVSlider" type="range" min="0" max="1" step="0.05" value="1" />120
+            </div>
+            <div>  Camera Position X: -10<input id="xSlider" type="range" min="-10" max="10" step="1" />10
+            </div>
+            <div> Camera Position Y: -10<input id="ySlider" type="range" min="-10" max="10" step="1" />10
+            </div>
+            <div> Camera Position Z: -10<input id="zSlider" type="range" min="-10" max="10" step="1"/>10
+            </div>
+            <br>
+
+            <div> <strong>Lightning related</strong> </div>
+            <div> Light Position X: -20<input id="lxSlider" type="range" min="-20" max="20" step="1" value="0" />20
+            </div>
+            <div>Light Position Y: -20<input id="lySlider" type="range" min="-20" max="20" step="1" value="10" />20
+            </div>
+            <div>Light Position Z: -20<input id="lzSlider" type="range" min="-20" max="20" step="1" value="0" />20
+            </div>
+            <br>
+
+            <div>Shading Type</div>
+            <select id="shadingMenu" size="3">
+                <option value="0" selected>Gouraud</option>
+                <option value="1">Phong</option>
+                <option value="2">Wireframe</option>
+            </select>
+        </td>
+
+    </table>
+    <div>
+</body>
+
+<body>
+<canvas id="gl-canvas" width="512" height="512">
+Oops ... your browser doesn't support the HTML5 canvas element
+</canvas>
+</body>
+</html>
